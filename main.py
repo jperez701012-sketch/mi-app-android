@@ -1,64 +1,38 @@
+name: Build APK
 
-from kivy.app import App
-from kivy.uix.gridlayout import GridLayout
-from kivy.uix.button import Button
-from kivy.uix.textinput import TextInput
-from kivy.uix.label import Label
-from kivy.graphics import Rectangle
-from kivy.core.window import Window
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-class MyGrid(GridLayout):
-    def __init__(self, **kwargs):
-        super(MyGrid, self).__init__(**kwargs)
+jobs:
+  build:
+    runs-on: ubuntu-22.04
 
-        # Dibujar la imagen de fondo adaptada a la pantalla
-        with self.canvas.before:
-            self.rect = Rectangle(source="portada.png", pos=self.pos, size=Window.size)
-        
-        # Actualizar fondo si cambia el tamaño de pantalla
-        self.bind(pos=self._update_rect, size=self._update_rect)
+    steps:
+    - uses: actions/checkout@v4
 
-        self.spacing = 10
-        self.padding = 20
-        self.cols = 2
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-        # Campos de texto y etiquetas
-        self.add_widget(Label(text="First Name: ", font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=180))
-        self.name = TextInput(text='Jorge', multiline=False, font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=220)
-        self.add_widget(self.name)
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake lld
+        pip install "cython<3.0.0" "buildozer==1.5.0" virtualenv
 
-        self.add_widget(Label(text="Last Name: ", font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=180))
-        self.lastName = TextInput(text='Pérez Reyes', multiline=False, font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=220)
-        self.add_widget(self.lastName)
+    - name: Clean previous build cache
+      run: |
+        rm -rf .buildozer
 
-        self.add_widget(Label(text="Email: ", font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=180))
-        self.email = TextInput(text='j_perez_reyes@hotmail.com', multiline=False, font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=220)
-        self.add_widget(self.email) 
+    - name: Build with Buildozer
+      run: |
+        buildozer -v android debug
 
-        # Botones
-        self.add_widget(Button(text='OK', font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=180, on_press=self.submit)) 
-        self.add_widget(Button(text='EXIT', font_size=20, size_hint_y=None, height=50, size_hint_x=None, width=180, on_release=self.close_app)) 
-        
-        self.frase = TextInput(text="Yo: ", multiline=True, font_size=15, size_hint_y=None, height=135, size_hint_x=None, width=220)
-        self.add_widget(self.frase)
-
-    def _update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
-
-    def submit(self, obj):
-        if self.name.text == 'Jorge': 
-            self.frase.text = "A mi me pertenecen ese rostro y es cuerpo, porque Jehová me los a regalado a mi, soy el dueño de ellos."
-        else: 
-            self.frase.text = "Cada vez que ves a esa mujer en tu mente, te estas viendo a ti mismo, porque tu seras esa mujer en carne y hueso, con ese mismo rostro fisico... Es promesa de Jehová"
-
-    def close_app(self, obj):
-        App.get_running_app().stop()
-
-class PERSONAL_PROGRAMApp(App):
-    title = "* * * * *P-r-u-e-b-a* * * *"
-    def build(self):
-        return MyGrid() 
-
-if __name__ == "__main__":
-    PERSONAL_PROGRAMApp().run()
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: bin/*.apk
